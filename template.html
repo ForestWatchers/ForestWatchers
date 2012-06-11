@@ -1,0 +1,338 @@
+<! -- Fix for Bootstrap css with Google Maps https://github.com/twitter/bootstrap/issues/1552 -->
+<style type="text/css">
+    #map_canvas label {
+        width: auto;
+        display: inline;
+    }
+    #map_canvas img {
+        max-width: none;
+    }
+
+    #throbber {
+        position:absolute;
+        z-index: 10000;
+        width: 100px;
+        height: 100px;
+        margin-top: 105px;
+        margin-left: 260px;
+    }
+
+    .layersDiv label {
+        color: white;
+    }
+</style>
+
+<div class="row">
+  <!-- Success and Error Messages for the user --> 
+  <!-- Question, task id, photo and action buttons for answering the question-->
+  <div class="span11 offset1">
+    <div id="success" class="alert alert-success" style="display:none;">
+      <a class="close">×</a>
+      <strong>Well done!</strong> Your answer has been saved</strong>
+    </div>
+    <div id="finish" class="alert alert-success" style="display:none;">
+      <strong>Congratulations!</strong> All the tasks have been completed!</strong>
+      <br/>
+      <div class="alert-actions">
+              <a class="btn small" href="/">Go back</a>
+              <a class="btn small" href="/app">or, Check other applications</a>
+      </div>
+    </div>
+    <div id="error" class="alert alert-error" style="display:none;">
+      <a class="close">×</a>
+      <strong>Error!</strong> Something went wrong, please contact the site administrators</strong>
+    </div>
+    <div id="warning" class="alert alert-warning" style="display:none;">
+      <a class="close">×</a>
+      <strong>Oooops!</strong> Tile not found, trying with a new one!</strong>
+    </div>
+  </div>
+
+  <div class="span11 offset1">
+    <div id="question">
+      <h1>Question</h1>
+      <h3 id="city">City</h3>
+      <p>Use the black toolbar (below the map) to <i class="icon-map-marker"></i> to 
+      mark deforested areas. You can draw areas, lines or add points of interest to be
+      reviewed.</p> 
+      <p>Task: <span id="task-id" class="label label-warning">#</span></p>
+      <div id="map_canvas" style="width: 500px; height: 450px;">
+          <div id="throbber"></div>
+      </div>
+      <br/>
+      <div id="controls" class="btn-group" data-toggle="buttons-radio" style="text-align:center">
+          <button id="navigate" class="btn btn-inverse active" onClick="toggleControl('navigate');">
+              <i class="icon icon-white icon-move"></i> Navigate
+          </button>
+          <button id="polygon"  class="btn btn-inverse" onClick="toggleControl('polygon');">
+              <i class="icon icon-white icon-map-marker"></i> Polygon
+          </button>
+          <button id="polygon"  class="btn btn-inverse" onClick="toggleControl('path');">
+              <i class="icon icon-white icon-pencil"></i> Line
+          </button>
+          <button id="point"    class="btn btn-inverse" onClick="toggleControl('point');">
+              <i class="icon icon-white icon-flag"></i> Point
+          </button>
+     </div>
+      <br/>
+    </div>
+    <div id="answer">
+        <button class="btn btn-success" onclick="submitTask()"><i class="icon-check icon-white"></i> Save these coordinates for the deforested area</button>
+        <button class="btn" onclick="pybossa.newTask('deforestedareas', 'http://forestwatchers.net/pybossa').done(function(data) {loadData(data)})">Try another area</button>
+    </div>
+
+  </div>
+</div>
+<script src="/static/openlayers/OpenLayers.js"></script>
+<script src="/static/js/throbber/throbber.js"></script>
+<script src="/static/js/pybossa/pybossa.js" type="text/javascript"></script>
+<!-- PyBossa interface -->
+<script>
+// Map Server URL
+var server = "http://forestwatchers.net/cgi-bin/mapserv"
+// Map Bounds
+//var bounds = new OpenLayers.Bounds(
+//     -57.739609289016386, -12.430917501000005,
+//     -53.554929289016385, -8.710952501000005
+//)
+// Map options
+var options = {
+    //maxExtent: bounds,
+    //maxResolution: 0.0163,
+    //projection: "EPSG:4326",
+    allowOverlays: true,
+    numZoomLevels: 3
+    //units: 'degrees'
+}
+// Map for loading the markers and placing them
+var map = null;
+// OpenLayers point variable to save the lon & lat
+var point;
+// Layer for placing markers. This layer allows drag & drop
+var answerLayer;
+// Draw controls
+var drawControls = { };
+
+var boxes  = new OpenLayers.Layer.Boxes( "Limits of the tile" );
+
+// Spinner to give feedback to the user when the map is getting loaded or something is taking place in the background
+var spinner = new Throbber({ 
+    color: 'black',
+    size: 90
+});
+// The spinner is attached to a div overlayed in top of the map. This div is only shown when the spinner is active, 
+// otherwise, the div is hidden from the view to show the map.
+spinner.appendTo (document.getElementById('throbber'));
+
+// This function shows the spinner div and starts its animation
+function spinnerStart() {
+    $("#throbber").show();
+    spinner.start();
+}
+
+// This function stops the spinner and hides the spinner div
+function spinnerStop() {
+    spinner.stop();
+    $("#throbber").hide();
+}
+
+// This function creates the map, the layers, and sets up the map
+function initialize() {
+
+    map = new OpenLayers.Map('map_canvas', {
+        controls: [
+            new OpenLayers.Control.Navigation(),
+            new OpenLayers.Control.PanZoomBar(),
+            new OpenLayers.Control.LayerSwitcher({roundedCornerColor: 'black'}),
+            new OpenLayers.Control.MousePosition(),
+            new OpenLayers.Control.ScaleLine(),
+            new OpenLayers.Control.Attribution()
+            ],
+
+        minScale: 160000,
+        numZoomLevels: 3,
+        unit: 'degrees'
+    });
+
+    // Layers
+    // Satellite Imagery Map (default layer)
+    map.addLayer(new OpenLayers.Layer.WMS("Satellite", server, 
+    {
+        layers: 'satellite',
+        //tilesOrigin: map.maxExtent.left + ',' + map.maxExtent.bottom,
+        isBaseLayer: true
+    }
+    ));
+
+    // Satellite Imagery Map (default layer)
+    map.addLayer(new OpenLayers.Layer.WMS("Segmentation", server, 
+    {
+        layers: 'demo',
+        //tilesOrigin: map.maxExtent.left + ',' + map.maxExtent.bottom,
+        transparent: true
+    }
+    ));
+
+
+    // Icon for the Deforested Area Marker 
+    var styleMapAnswerPark = new OpenLayers.StyleMap({
+        pointRadius: 15,
+        externalGraphic: 'http://forestwatchers.net/assets/static/img/mapicons/information.png'
+    });
+
+    // Black color for the path and polygon control to integrate with black controls
+    // and inverse Bootstrap color scheme
+    var styleBlack = new OpenLayers.StyleMap({
+        pointRadius: 5,
+        fillColor: "rgba(0,0,0,0.5)",
+        strokeColor: "rgba(0,0,0,1)",
+        strokeWidth: 2,
+    });
+
+
+    // Layer for placing the deforested area marker
+    answerLayer = new OpenLayers.Layer.Vector("Interesting Points", {
+        styleMap: styleMapAnswerPark,
+        attribution: 'Marker Icons by <a href="http://mapicons.nicolasmollet.com/">Nicolas Mollet</a>'
+    });
+    map.addLayer(answerLayer);
+
+    // Layer for drawing deforested areas to review
+    areaLayer = new OpenLayers.Layer.Vector("Deforested Areas", {
+        styleMap: styleBlack
+    });
+    map.addLayer(areaLayer);
+
+
+    // Function to allow only the addition of one urban park per city
+    // The function gets the feature (point) and gets its location, transforms it to the right projection
+    // loads the lon and at into the HTML skeleton and disables the toolbar, so no more points can be added
+    //disablePoint = function(feature) { 
+    //    $("#lat").text(feature.geometry.y);
+    //    var tmp = feature.geometry.clone();
+    //    tmp.transform(
+    //            map.getProjectionObject(), // from Spherical Mercator Projection
+    //            new OpenLayers.Projection("EPSG:4326") // to transform from WGS 1984
+    //    );
+    //    $("#lon").text(tmp.x);       
+    //    $("#lat").text(tmp.y);       
+    //    toolbar.deactivate();
+    //}
+
+    // Enable drag & drop in the answer Layer
+    var drag = new OpenLayers.Control.DragFeature(answerLayer);
+    // Add the drag & drop control into the map
+    map.addControl(drag);
+    // Activate drag & drop
+    drag.activate();
+
+    // Add a layer to load a box that represents the limits for the restrictedExtent
+    map.addLayer(boxes);
+
+    // Drawing controls
+    drawControls = {
+        polygon:    new OpenLayers.Control.DrawFeature(areaLayer, OpenLayers.Handler.Polygon),
+        path:       new OpenLayers.Control.DrawFeature(areaLayer, OpenLayers.Handler.Path),
+        point:      new OpenLayers.Control.DrawFeature(answerLayer, OpenLayers.Handler.Point)
+    }
+
+    // Add them to the map
+    for (var key in drawControls) {
+        map.addControl(drawControls[key]);
+    }
+}
+
+// Function to enable/disable the drawing controls. Only one can be active at a time
+function toggleControl(control) {
+    for (key in drawControls) {
+        ctrl = drawControls[key];
+        if ( (control == key) && (!ctrl.active) ) {
+            ctrl.activate();
+        }
+        else {
+            ctrl.deactivate();
+        }
+    }
+}
+
+// Initialize the map
+initialize();
+
+// This function will center the map for a given tile
+function center(bounds, restrictedExtent) {
+    // bounds = [left, bottom, right, top]
+    // restrictedExtent = [left, bottom, right, top]
+    // As this action could take some time, start the spinner
+    spinnerStart();
+    // Clean previous markers from the answer layers
+    answerLayer.removeAllFeatures();
+    areaLayer.removeAllFeatures();
+    // Convert the bounds and restrictedExtent to valid OpenLayers objects
+    var b = new OpenLayers.Bounds.fromArray(bounds);
+    var r = new OpenLayers.Bounds.fromArray(restrictedExtent);
+    // Add a box to mark in red the limited restrictedExtent
+    var box = new OpenLayers.Marker.Box(r);
+    boxes.addMarker(box);
+    // Set limits for the map: the user should only see a small fraction of the tile
+    map.setOptions({
+        maxExtent: r,
+        restrictedExtent: r
+    })
+    map.zoomToExtent(r);
+    // Stop the spinner as the map has been configured
+    spinnerStop();
+}
+
+// Load the task data into the HTML skeleton
+function loadData (data) {
+    spinnerStart();
+    $("#question h1").text(data.question);
+    $("#question h3").text(data.task.info.tile.name);
+    $("#task-id").text(data.task.id);
+    spinnerStop();
+
+    // Center the map for this task
+    center(data.task.info.tile.bounds, data.task.info.tile.restrictedExtent);
+}
+
+// Uses the new API method to get a proper task to be shown!
+pybossa.newTask('deforestedareas', 'http://forestwatchers.net/pybossa').done(function(data) { 
+    loadData(data);
+});
+
+// Saves the answer for the given task
+function submitTask() {
+    task_id = $("#task-id").text();
+
+    // Convert the feature location into the GeoJSON format
+    geojson = new OpenLayers.Format.GeoJSON({
+        'internalProjection': map.baseLayer.projection,
+        'externalProjection': new OpenLayers.Projection("EPSG:4326")
+        });
+    // The user can provide several answers, indicating areas, paths or even points of interest
+    // Thus, the answer is a list of GeoJSON objects
+    answer = [];
+    // Cache the number of features added to the areaLayer
+    numAnswers = areaLayer.features.length;
+    // Iterate over them, and save them into the answer list variable
+    for (i = 0; i< numAnswers; i++) {
+        answer.push(JSON.parse(geojson.write(areaLayer.features[i])));
+    }
+    // Repeat for the points area
+    numAnswers = answerLayer.features.length;
+    // Iterate over them, and save them into the answer list variable
+    for (i = 0; i< numAnswers; i++) {
+        answer.push(JSON.parse(geojson.write(answerLayer.features[i])));
+    }
+
+    pybossa.saveTask( task_id, {'city': city, 'deforestedareas': answer}).done( function(data) {
+        // Show the feedback div
+        $("#success").fadeIn(); 
+        // Fade out the pop-up after a 1000 miliseconds
+        setTimeout(function() { $("#success").fadeOut() }, 1000);
+        // Request a new task
+        pybossa.newTask('deforestedareas', 'http://forestwatchers.net/pybossa').done( function(data) { loadData(data) });
+    });
+}
+</script>
+
