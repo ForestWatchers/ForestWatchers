@@ -7,9 +7,6 @@
 # a unique name based on the filename and add a new layer in the end
 # of the mapfile
 #
-# Eduardo F. P. Luz
-# Jun 2012
-# 
 
 import os
 import sys
