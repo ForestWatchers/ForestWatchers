@@ -16,25 +16,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# 
+# Purpose:
 # This script compares files from a directory to those contemplated
 # in a specific mapfile. If the file is not in the mapfile it creates
 # a unique name based on the filename and add a new layer in the end
 # of the mapfile
-#
 
 import os
 import sys
+import shutil
 from optparse import OptionParser
 
-#
-#Functions for raster images
-#
-
-#To map the location of a raster image to an unique identifier
 def getRasterLocation(fname):
     """
-    Establishes the location of the raster image
+    To map the location of a raster image to an unique identifier
 
     :arg string fname: The name of the file
     :returns: A unique ID for the location
@@ -56,10 +51,9 @@ def getRasterLocation(fname):
         location = "f"
     return location
 
-#To map the month (in Julian days) to a string (for raster files)
 def getRasterMonth(fname):
     """
-    Establishes the month for the acquisition of the raster image
+    To map the month (in Julian days) to a string (for raster files)
 
     :arg string fname: The name of the file
     :returns: The month of the image
@@ -93,10 +87,9 @@ def getRasterMonth(fname):
         month = "dec"
     return month
 
-#Writing info of the new raster layer in the file
 def writeRasterLayer(linesNew,lastLine,path,fname,nameLayer):
     """
-    Add a new layer for a new raster image
+    Add a new layer for the new raster image
 
     :arg list linesNew: A list of lines from the mapfile 
     :arg int lastLine: The number of lines in the mapfile
@@ -121,14 +114,9 @@ def writeRasterLayer(linesNew,lastLine,path,fname,nameLayer):
     linesNew.insert(lastLine+12, "\n  END\n")
     return
 
-#
-#Functions for shape files
-#
-
-#To map the month to a string (for shape files)
 def getShapeMonth(fname):
     """
-    Establishes the month for the generation of the shapefile
+    To map the month to a string (for shape files)
 
     :arg string fname: The name of the shapefile
     :returns: The month of the shapefile
@@ -162,10 +150,9 @@ def getShapeMonth(fname):
         month = "dec"
     return month
 
-#Writing info of the new shape layer in the file
 def writeShapeLayer(linesNew,lastLine,path,fname,nameLayer):
     """
-    Add a new layer for a new shapefile
+    Add a new layer for the new shapefile
 
     :arg list linesNew: A list of lines from the mapfile 
     :arg int lastLine: The number of lines in the mapfile
@@ -200,38 +187,49 @@ def writeShapeLayer(linesNew,lastLine,path,fname,nameLayer):
     linesNew.insert(lastLine+22, "\n  END\n")
     return
 
+def readFile(origFile):
+    """
+    Reads the original mapfile and creates copies of it in the memory
 
-#######################
-# Begin of the script #
-#######################
-
-if __name__ == "__main__":
-
-    # Arguments for the application
-    usage = "usage: %prog arg1 arg2"
-    parser = OptionParser(usage)
-
-    parser.add_option("-f", "--file", dest="origFile", help="Name of the original map file", metavar="FILE")
-    parser.add_option("-p", "--path", dest="path", help="Directory containing the files (raster and/or shapefiles)", metavar="PATH")
-
-    (options, args) = parser.parse_args()
-
-    if options.origFile:
-        origFile = options.origFile
-    else:
-        parser.error("You must supply the name of the original map file")
-
-    if options.path:
-        path = options.path
-    else:
-        parser.error("You must supply the path with the new images/shapefiles")
-
-    #Let's get a mirror of the original file in the memory
+    :arg string origFile: The name of the original mapfile
+    :returns: Copies of the original file in plain text and as a list of lines
+    :rtype list:
+    """
     inFile = open(origFile,"r")
     textOrig = inFile.read()
     inFile.seek(0)
     linesOrig = inFile.readlines()
     inFile.close()
+    return textOrig, linesOrig
+
+def writeFile(origfile, linesNew):
+    """
+    Write down the new map file while creates a backup copy
+
+    :arg string origFile: The name of the original mapfile
+    :arg list linesNew: The lines for the new map file with new layers
+    :returns: The name of the new filemap
+    :rtype string:
+    """
+    shutil.copy(origFile, origFile+"~")
+    newFileName = origFile
+    outfile = open(newFileName, "w")
+    outfile.write("".join(linesNew))
+    outfile.close()
+    return newFileName
+
+def searchAndAddNewLayer(path, textOrig, linesOrig):
+    """
+    Main function for searching and adding a new layer
+
+    :arg string path: The path for the new file (raster or shapefile)
+    :arg string textOrig: The original plain text of the mapfile
+    :arg list linesOrig: The original text of the mapfile as a list of lines
+    :returns: If a new layer was added
+    :rtype bool:
+    """
+    #So far, no new layers exists
+    newLayer = False
 
     #Create a copy to build the new mapfile
     linesNew = linesOrig
@@ -256,6 +254,9 @@ if __name__ == "__main__":
             
             #If the file name is not found in the original file
             if index == -1:
+
+                # A new raster image ou shapefile is detected
+                newLayer = True
 
                 #Building an unique ID for the name of the layer
                 #First for shapefiles
@@ -292,11 +293,46 @@ if __name__ == "__main__":
                 
                     #Append the new layer in the new file
                     writeRasterLayer(linesNew,lastLine-2,path,fname,nameLayer)
+    
+    #Returns the info about finding a new layer
+    return newLayer, linesNew
 
-    #Write down the new map file
-    outfile = open("NEW_"+origFile, "w")
-    outfile.write("".join(linesNew))
-    outfile.close()
+
+#######################
+# Begin of the script #
+#######################
+
+if __name__ == "__main__":
+
+    # Arguments for the application
+    usage = "usage: %prog arg1 arg2"
+    parser = OptionParser(usage)
+
+    parser.add_option("-f", "--file", dest="origFile", help="Name of the original map file", metavar="FILE")
+    parser.add_option("-p", "--path", dest="path", help="Directory containing the files (raster and/or shapefiles)", metavar="PATH")
+
+    (options, args) = parser.parse_args()
+
+    if options.origFile:
+        origFile = options.origFile
+    else:
+        parser.error("You must supply the name of the original map file")
+
+    if options.path:
+        path = options.path
+    else:
+        parser.error("You must supply the path with the new images/shapefiles")
+
+    #Let's get a mirror of the original file in the memory
+    textOrig, linesOrig = readFile(origFile)
+
+    #Search and add a new layer
+    newLayer, linesNew = searchAndAddNewLayer(path, textOrig, linesOrig)
+
+    # Write the new file if a new layer was inserted
+    if newLayer:
+        newMapFile = writeFile(origFile, linesNew)
+        print "New mapfile written: ", newMapFile
 
 #
 #End of the script
