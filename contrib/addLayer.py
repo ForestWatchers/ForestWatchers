@@ -26,6 +26,7 @@ import os
 import sys
 import shutil
 from optparse import OptionParser
+from osgeo import osr, gdal
 
 def getRasterLocation(fname):
     """
@@ -281,6 +282,9 @@ def searchAndAddNewLayer(path, textOrig, linesOrig):
                     #Let's warn the user
                     print "New GeoTIFF file detected:", fname            
 
+                    #Get info from the raster image using GDAL (NOT BEING USED SO FAR)
+                    projection, width, height = getRasterInfo(path, fname)
+
                     #For raster images it's based on the location of the image, year and month
                     location = getRasterLocation(fname)
                     pointLoc = fname.find(".")
@@ -297,6 +301,34 @@ def searchAndAddNewLayer(path, textOrig, linesOrig):
     #Returns the info about finding a new layer
     return newLayer, linesNew
 
+def getRasterInfo(path, fname):
+    """
+    Get projection and size information from the raster image
+
+    :arg string path: The path for the raster file
+    :arg string fname: The name of the raster file
+    :returns: The DATUM, width and height of the image
+    :rtype list:
+    """
+    image = gdal.Open(path+fname)
+    width = image.RasterXSize
+    height = image.RasterYSize
+    projTemp = image.GetProjection()
+    datum = projTemp.find('DATUM')
+    projection = projTemp[datum+7:31]
+    return projection, width, height
+
+def checkProjection(projection):
+    """
+    Raises a warning if the projection is not the desired one
+
+    :arg string projection: Projection of the file
+    :returns: Print on screen
+    """
+    desiredProj = "WGS_1984"
+    if projection != desiredProj:
+        print "\nWARNING!!! Projection of this file is not WGS_1984.\n\n"
+    return
 
 #######################
 # Begin of the script #
