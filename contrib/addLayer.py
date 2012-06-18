@@ -33,6 +33,13 @@ from optparse import OptionParser
 
 #To map the location of a raster image to an unique identifier
 def getRasterLocation(fname):
+    """
+    Establishes the location of the raster image
+
+    :arg string fname: The name of the file
+    :returns: A unique ID for the location
+    :rtype: string
+    """
     pointLoc = fname.find(".")
     locationTemp = fname[0:pointLoc]
     if locationTemp == "AERONET_Rio_Branco":
@@ -51,6 +58,13 @@ def getRasterLocation(fname):
 
 #To map the month (in Julian days) to a string (for raster files)
 def getRasterMonth(fname):
+    """
+    Establishes the month for the acquisition of the raster image
+
+    :arg string fname: The name of the file
+    :returns: The month of the image
+    :rtype: string
+    """
     pointLoc = fname.find(".")
     monthTemp = fname[pointLoc+5:pointLoc+8]
     if monthTemp == "031":
@@ -81,6 +95,17 @@ def getRasterMonth(fname):
 
 #Writing info of the new raster layer in the file
 def writeRasterLayer(linesNew,lastLine,path,fname,nameLayer):
+    """
+    Add a new layer for a new raster image
+
+    :arg list linesNew: A list of lines from the mapfile 
+    :arg int lastLine: The number of lines in the mapfile
+    :arg string path: The path for the new raster file
+    :arg string fname: The name of the image file
+    :arg string nameLayer: The unique name for the layer
+
+    :returns: Nothing
+    """
     linesNew.insert(lastLine,    "\n  LAYER")
     linesNew.insert(lastLine+1,  "\n    NAME \""+nameLayer+"\"")
     linesNew.insert(lastLine+2,  "\n    DATA \""+path+fname+"\"")
@@ -102,6 +127,13 @@ def writeRasterLayer(linesNew,lastLine,path,fname,nameLayer):
 
 #To map the month to a string (for shape files)
 def getShapeMonth(fname):
+    """
+    Establishes the month for the generation of the shapefile
+
+    :arg string fname: The name of the shapefile
+    :returns: The month of the shapefile
+    :rtype: string
+    """
     pointLoc = fname.find("_")
     monthTemp = fname[pointLoc+5:pointLoc+7]
     if monthTemp == "01":
@@ -132,6 +164,17 @@ def getShapeMonth(fname):
 
 #Writing info of the new shape layer in the file
 def writeShapeLayer(linesNew,lastLine,path,fname,nameLayer):
+    """
+    Add a new layer for a new shapefile
+
+    :arg list linesNew: A list of lines from the mapfile 
+    :arg int lastLine: The number of lines in the mapfile
+    :arg string path: The path for the new shapefile
+    :arg string fname: The name of the shapefile
+    :arg string nameLayer: The unique name for the layer
+
+    :returns: Nothing
+    """
     linesNew.insert(lastLine,    "\n  LAYER")
     linesNew.insert(lastLine+1,  "\n    NAME \""+nameLayer+"\"")
     linesNew.insert(lastLine+2,  "\n    METADATA")
