@@ -25,6 +25,7 @@
 
 import os
 import sys
+from optparse import OptionParser
 
 #
 #Functions for raster images
@@ -161,83 +162,98 @@ def writeShapeLayer(linesNew,lastLine,path,fname,nameLayer):
 # Begin of the script #
 #######################
 
-#Name of the original map file
-origFile = "maps2011.map"
+if __name__ == "__main__":
 
-#Let's get a mirror of the original file in the memory
-inFile = open(origFile,"r")
-textOrig = inFile.read()
-inFile.seek(0)
-linesOrig = inFile.readlines()
-inFile.close()
+    # Arguments for the application
+    usage = "usage: %prog arg1 arg2"
+    parser = OptionParser(usage)
 
-#Create a copy to build the new mapfile
-linesNew = linesOrig
+    parser.add_option("-f", "--file", dest="origFile", help="Name of the original map file", metavar="FILE")
+    parser.add_option("-p", "--path", dest="path", help="Directory containing the files (raster and/or shapefiles)", metavar="PATH")
 
-#Get the number of lines in the original file
-lastLine = len(linesOrig)
+    (options, args) = parser.parse_args()
 
-#Set the directory which contains the files (raster and/or shape)
-path = "/home/eduardo/Testes/Cloud_2011/"
+    if options.origFile:
+        origFile = options.origFile
+    else:
+        parser.error("You must supply the name of the original map file")
 
-#Get a list of the files in the directory
-dirList = os.listdir(path)
+    if options.path:
+        path = options.path
+    else:
+        parser.error("You must supply the path with the new images/shapefiles")
 
-#For each file in the directory
-for fname in dirList:
-    
-    #Let's only look for tif, geotif or shp files
-    if fname[-4:] == '.tif' or fname[-7:] == '.geotif' or fname[-4:] == '.shp':
+    #Let's get a mirror of the original file in the memory
+    inFile = open(origFile,"r")
+    textOrig = inFile.read()
+    inFile.seek(0)
+    linesOrig = inFile.readlines()
+    inFile.close()
+
+    #Create a copy to build the new mapfile
+    linesNew = linesOrig
+
+    #Get the number of lines in the original file
+    lastLine = len(linesOrig)
+
+    #Get a list of the files in the directory
+    dirList = os.listdir(path)
+
+    #For each file in the directory
+    for fname in dirList:
         
-        #Set the filename as the search parameter
-        search = fname
-        
-        #Search in the original mapfile
-        index = textOrig.find(search)
-        
-        #If the file name is not found in the original file
-        if index == -1:
-
-            #Building an unique ID for the name of the layer
-            #First for shapefiles
-            if fname[-4:] == '.shp':
-                #Let's warn the user
-                print "New Shapefile file detected:", fname
-
-                #For shape files it's based on year and month
-                pointLoc = fname.find("_")
-                year = fname[pointLoc+1:pointLoc+5]
-                month = getShapeMonth(fname)
-                nameLayer = "shp_cld_"+month+year
-
-                #Get the last line of the new map file
-                lastLine = len(linesNew)
+        #Let's only look for tif, geotif or shp files
+        if fname[-4:] == '.tif' or fname[-7:] == '.geotif' or fname[-4:] == '.shp':
             
-                #Append the new layer in the new file
-                writeShapeLayer(linesNew,lastLine-2,path,fname,nameLayer)
-
-            #Then for raster images
-            else:
-                #Let's warn the user
-                print "New GeoTIFF file detected:", fname            
-
-                #For raster images it's based on the location of the image, year and month
-                location = getRasterLocation(fname)
-                pointLoc = fname.find(".")
-                year = fname[pointLoc+1:pointLoc+5]
-                month = getRasterMonth(fname)
-                nameLayer = month+year+location
+            #Set the filename as the search parameter
+            search = fname
             
-                #Get the last line of the new map file
-                lastLine = len(linesNew)
+            #Search in the original mapfile
+            index = textOrig.find(search)
             
-                #Append the new layer in the new file
-                writeRasterLayer(linesNew,lastLine-2,path,fname,nameLayer)
+            #If the file name is not found in the original file
+            if index == -1:
 
-#Write down the new map file
-outfile = open("NEW_"+origFile, "w")
-outfile.write("".join(linesNew))
-outfile.close()
+                #Building an unique ID for the name of the layer
+                #First for shapefiles
+                if fname[-4:] == '.shp':
+                    #Let's warn the user
+                    print "New Shapefile file detected:", fname
+
+                    #For shape files it's based on year and month
+                    pointLoc = fname.find("_")
+                    year = fname[pointLoc+1:pointLoc+5]
+                    month = getShapeMonth(fname)
+                    nameLayer = "shp_cld_"+month+year
+
+                    #Get the last line of the new map file
+                    lastLine = len(linesNew)
+                
+                    #Append the new layer in the new file
+                    writeShapeLayer(linesNew,lastLine-2,path,fname,nameLayer)
+
+                #Then for raster images
+                else:
+                    #Let's warn the user
+                    print "New GeoTIFF file detected:", fname            
+
+                    #For raster images it's based on the location of the image, year and month
+                    location = getRasterLocation(fname)
+                    pointLoc = fname.find(".")
+                    year = fname[pointLoc+1:pointLoc+5]
+                    month = getRasterMonth(fname)
+                    nameLayer = month+year+location
+                
+                    #Get the last line of the new map file
+                    lastLine = len(linesNew)
+                
+                    #Append the new layer in the new file
+                    writeRasterLayer(linesNew,lastLine-2,path,fname,nameLayer)
+
+    #Write down the new map file
+    outfile = open("NEW_"+origFile, "w")
+    outfile.write("".join(linesNew))
+    outfile.close()
 
 #
 #End of the script
